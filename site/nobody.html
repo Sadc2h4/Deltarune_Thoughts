@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>&#12288;</title>
+<style>
+  @font-face {
+    font-family:"DeterminationJP";
+    src:url("fonts/DeterminationJP.ttf") format("truetype");
+    font-display:swap;
+  }
+  html, body { margin:0; height:100%; background:#000; overflow:hidden;
+    font-family:"DeterminationJP","MS PGothic",Osaka,sans-serif; cursor:default; }
+
+  /* 扉の背後に立つもの。ほとんど見えない濃い灰色でゆっくり浮かぶ */
+  #door { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%);
+    width:150px; image-rendering:pixelated; opacity:0; filter:brightness(.10) grayscale(1);
+    transition:opacity 6s ease-in, filter 6s ease-in; pointer-events:none; z-index:1; }
+  #door.awake { opacity:.16; filter:brightness(.22) grayscale(1); }
+
+  /* モノローグ本体 */
+  #scene { position:fixed; inset:0; z-index:2; display:none; flex-direction:column;
+    align-items:center; justify-content:center; padding:8vh 6vw; box-sizing:border-box;
+    text-align:center; }
+  #scene.on { display:flex; }   /* パスワード正解後に表示 */
+  #log { max-width:640px; width:100%; color:#c9c9c9; font-size:19px; line-height:2.05;
+    letter-spacing:1px; text-shadow:0 0 6px rgba(180,180,180,.25); min-height:2em; }
+  #log .ln { opacity:.92; margin:0; white-space:pre-wrap; }
+  #cursor { display:inline-block; width:.55em; height:1.05em; margin-left:2px;
+    background:#c9c9c9; vertical-align:-2px; animation:blink 1.05s steps(1) infinite; }
+  @keyframes blink { 50% { opacity:0; } }
+
+  /* 正体不明の数字 */
+  .num { display:block; margin:.5em 0; color:#e8e8e8; font-size:40px; letter-spacing:6px;
+    font-family:"Courier New",monospace; font-weight:bold;
+    text-shadow:2px 0 6px rgba(255,60,60,.55), -2px 0 6px rgba(60,120,255,.55); }
+
+  /* CRTの走査線とビネット */
+  #crt { position:fixed; inset:0; z-index:5; pointer-events:none;
+    background:
+      radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.9) 100%),
+      repeating-linear-gradient(0deg, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px,
+        rgba(0,0,0,.28) 3px, rgba(0,0,0,.28) 4px);
+    mix-blend-mode:multiply; }
+
+  /* 砂嵐（一瞬の乱れ） */
+  #static { position:fixed; inset:0; z-index:6; display:none; opacity:.0; }
+
+  /* 画面全体のグリッチ（たまに横ずれ＆色収差） */
+  .glitch #scene { animation:glitch .22s steps(2) 2; }
+  @keyframes glitch {
+    0% { transform:translate(0,0); filter:none; }
+    25% { transform:translate(-3px,1px); filter:hue-rotate(20deg) contrast(1.4); }
+    50% { transform:translate(4px,-2px); }
+    75% { transform:translate(-2px,2px); filter:contrast(1.6); }
+    100% { transform:translate(0,0); filter:none; }
+  }
+
+  /* 終盤に中央下へ現れる「木の後ろにいた男」。文字より下のレイヤー（z-index:1） */
+  #man { position:fixed; left:50%; bottom:4vh; transform:translateX(-50%);
+    width:140px; image-rendering:pixelated; opacity:0; z-index:1; pointer-events:none;
+    transition:opacity 4s ease-in; filter:brightness(.9); }
+  #man.show { opacity:.85; }
+
+  /* 選択肢・入力欄を置くUI領域（ログの下） */
+  #ui { margin-top:30px; min-height:1px; display:flex; flex-direction:column;
+    align-items:center; }
+  .choices { display:flex; gap:46px; justify-content:center;
+    opacity:0; animation:uiIn .5s ease forwards; }
+  @keyframes uiIn { to { opacity:1; } }
+  .choice { font-family:inherit; font-size:19px; letter-spacing:3px;
+    background:transparent; color:#c9c9c9; border:2px solid #555; padding:8px 30px;
+    cursor:pointer; }
+  .choice:hover { color:#fff; border-color:#c9c9c9; background:#111; }
+  .choices.vanish { opacity:0; transform:scale(.88);
+    transition:opacity .35s ease, transform .35s ease; }
+  .field { font-family:inherit; font-size:19px; letter-spacing:2px; text-align:center;
+    background:#0a0a0a; color:#dcdcdc; border:none; border-bottom:2px solid #666;
+    padding:6px 12px; width:min(360px,78vw); outline:none; caret-color:#c9c9c9;
+    opacity:0; animation:uiIn .5s ease forwards; }
+  .field::selection { background:#333; color:#dcdcdc; }
+  .minigame-stub { display:flex; flex-direction:column; align-items:center; gap:18px;
+    opacity:0; animation:uiIn .5s ease forwards; }
+  .mg-note { color:#8a8a8a; font-size:14px; letter-spacing:3px; }
+
+  /* ベータテスト用URL（イベント終盤に表示され，書き留めてもらう）。
+     下に続く選択肢ボタンと誤クリックしないよう，下側に大きめの余白を取る */
+  .beta-link { margin:26px 0 56px; opacity:0; animation:uiIn .8s ease forwards; }
+  .beta-link a { color:#33ff66; font-size:15px; letter-spacing:1px; word-break:break-all;
+    text-decoration:underline; text-shadow:0 0 8px rgba(51,255,102,.4); }
+  .beta-link a:hover { color:#7fffa5; }
+
+  /* 白フェード用オーバーレイ（最前面） */
+  #white { position:fixed; inset:0; z-index:9; background:#fff; opacity:0;
+    pointer-events:none; }
+
+  a.back { position:fixed; left:10px; bottom:10px; z-index:7; color:#141414; font-size:12px;
+    text-decoration:none; letter-spacing:1px; opacity:0; transition:opacity 3s ease-in; }
+  a.back.show { opacity:1; color:#4a4a4a; }
+  a.back:hover { color:#c9c9c9; }
+
+  /* ─ パスワードゲート ─
+     一見なにもない暗闇。背景よりほんの少しだけ黒い入力欄が潜んでいて，
+     注意深くマウスを重ねる（I字カーソル）・クリック・ドラッグすると存在に気づける。 */
+  #gate { position:fixed; inset:0; z-index:8; background:#060606;
+    transition:opacity 1.1s ease; }
+  #gate.open { opacity:0; }
+  #pw { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    width:min(340px, 78vw); height:42px; padding:0 10px;
+    background:#000; border:1px solid #070707; border-radius:0;
+    color:#151515; caret-color:#2a2a2a; font-size:16px; letter-spacing:3px;
+    font-family:inherit; outline:none; -webkit-appearance:none; appearance:none; }
+  #pw:hover, #pw:focus { border-color:#171717; }   /* 注意深く触れたときだけ薄く枠が浮く */
+  #pw::selection { background:#242424; color:#151515; }   /* ドラッグで存在が分かる */
+  #pw::-moz-selection { background:#242424; color:#151515; }
+</style>
+</head>
+<body>
+<img id="man" src="resource/Man_overworld_retro_tree.gif" alt="">
+<div id="scene">
+  <img id="door" src="resource/Nobody.png" alt="">
+  <div id="log"></div>
+  <div id="ui"></div>
+</div>
+<canvas id="static"></canvas>
+<div id="crt"></div>
+<div id="white"></div>
+<div id="gate"><input id="pw" type="text" autocomplete="off" autocapitalize="off"
+  autocorrect="off" spellcheck="false" aria-label=""></div>
+<a class="back" href="index.html">&laquo; とじる</a>
+
+<script src="minigame.js"></script>
+<script>
+//-----------------------------------------------------------------------------
+// 隠し扉の先。「わすれられたもの」との対話イベント。
+// パスワード突破 → 少し間をおいて独白開始 → Y/N選択・名前/ジャンル入力で分岐 →
+// 選択を誤ると失敗セリフのあとタブが閉じる。最後まで進むと egg.png を渡して幕。
+//-----------------------------------------------------------------------------
+var log    = document.getElementById("log");
+var ui     = document.getElementById("ui");
+var door   = document.getElementById("door");
+var man    = document.getElementById("man");
+var scene  = document.getElementById("scene");
+var gate   = document.getElementById("gate");
+var pw     = document.getElementById("pw");
+var white  = document.getElementById("white");
+var body   = document.body;
+
+var NAME = "キミ";                                   // 名前入力後に更新（既定は「キミ」）
+function fill(s) { return String(s).split("<名前>").join(NAME); }
+function wait(ms) { return new Promise(function(r){ setTimeout(r, ms); }); }
+
+// ---- タイプ表示 ----------------------------------------------------------
+var cursor = document.createElement("span"); cursor.id = "cursor";
+function newLine(cls) {
+  var p = document.createElement("p"); p.className = "ln" + (cls ? " " + cls : "");
+  log.appendChild(p); p.appendChild(cursor);
+  while (log.children.length > 7) log.removeChild(log.firstChild);  // 画面内に収める
+  return p;
+}
+function typeText(str) {
+  str = fill(str);
+  return new Promise(function(resolve){
+    var p = newLine();
+    var i = 0;
+    (function step(){
+      if (i < str.length) {
+        p.insertBefore(document.createTextNode(str.charAt(i)), cursor);
+        i++;
+        var ch = str.charAt(i - 1);
+        var d = (ch === "。" || ch === "…" || ch === "、" || ch === "？" || ch === "！") ? 250 : 56;
+        setTimeout(step, d + Math.random() * 24);
+      } else { resolve(); }
+    })();
+  });
+}
+function say(text, after) { return typeText(text).then(function(){ return wait(after || 650); }); }
+// 元テキストの空行を表示に反映（空の行を挟む）＋ そのぶん間をあける
+function blankLine() { var p = newLine(); return p; }
+function gap(ms) { blankLine(); return wait(ms || 1200); }
+
+// ---- 演出（グリッチ・砂嵐・白フェード） ----------------------------------
+function glitchOnce() {
+  body.classList.add("glitch");
+  setTimeout(function(){ body.classList.remove("glitch"); }, 460);
+}
+var canvas = document.getElementById("static");
+var cctx = canvas.getContext("2d");
+function burst(ms) {
+  return new Promise(function(resolve){
+    canvas.width  = Math.ceil(window.innerWidth / 4);
+    canvas.height = Math.ceil(window.innerHeight / 4);
+    canvas.style.width = "100%"; canvas.style.height = "100%";
+    canvas.style.display = "block"; canvas.style.opacity = ".5";
+    var raf;
+    (function draw(){
+      var img = cctx.createImageData(canvas.width, canvas.height), d = img.data;
+      for (var i = 0; i < d.length; i += 4) {
+        var v = Math.random() * 255 | 0; d[i] = d[i+1] = d[i+2] = v; d[i+3] = 255;
+      }
+      cctx.putImageData(img, 0, 0);
+      raf = requestAnimationFrame(draw);
+    })();
+    setTimeout(function(){
+      cancelAnimationFrame(raf);
+      canvas.style.display = "none"; canvas.style.opacity = "0";
+      resolve();
+    }, ms);
+  });
+}
+async function whiteFadePartial() {          // 白くなりかけて、また戻る
+  white.style.transition = "opacity 3.4s ease"; white.style.opacity = ".92";
+  await wait(3500);
+  white.style.transition = "opacity 3s ease"; white.style.opacity = "0";
+  await wait(3000);
+}
+async function whiteOutClose() {             // 完全に白へ → タブを閉じる
+  white.style.transition = "opacity 5s ease"; white.style.opacity = "1";
+  await wait(5200);
+  closeTab();
+}
+
+// ---- タブを閉じる（本番は扉から window.open で開くので閉じられる） -------
+function closeTab() {
+  try { window.open("", "_self"); } catch (e) {}
+  window.close();
+  // 閉じられない環境（URL直開き等）の保険：真っ暗にして終わらせる
+  setTimeout(function(){
+    document.documentElement.innerHTML =
+      "<body style='margin:0;height:100vh;background:#000'></body>";
+  }, 500);
+}
+async function glitchClose() {               // 即・崩壊してから閉じる
+  glitchOnce(); await wait(520);
+  await burst(750);
+  closeTab();
+}
+async function failClose(line) {             // 失敗セリフ→5秒後に崩壊→閉じる
+  if (line) await say(line, 0);
+  await wait(5000);
+  glitchOnce(); await wait(520);
+  await burst(750);
+  closeTab();
+}
+
+// ---- 入力・選択肢 --------------------------------------------------------
+function askYesNo() { return askChoice("はい", "いいえ"); }
+// 任意ラベルの二択。左側が選ばれたら true を返す。
+function askChoice(labelL, labelR) {
+  return new Promise(function(resolve){
+    var box = document.createElement("div"); box.className = "choices";
+    var y = document.createElement("button"); y.className = "choice"; y.textContent = labelL;
+    var n = document.createElement("button"); n.className = "choice"; n.textContent = labelR;
+    box.appendChild(y); box.appendChild(n); ui.appendChild(box);
+    function pick(v){ box.remove(); resolve(v); }
+    y.addEventListener("click", function(){ pick(true); });
+    n.addEventListener("click", function(){ pick(false); });
+  });
+}
+function fakeYesNo() {                        // 選ぼうとすると逃げて消える偽の選択肢
+  return new Promise(function(resolve){
+    var box = document.createElement("div"); box.className = "choices";
+    var y = document.createElement("button"); y.className = "choice"; y.textContent = "はい";
+    var n = document.createElement("button"); n.className = "choice"; n.textContent = "いいえ";
+    box.appendChild(y); box.appendChild(n); ui.appendChild(box);
+    var gone = false;
+    function vanish(){
+      if (gone) return; gone = true;
+      box.classList.add("vanish");
+      setTimeout(function(){ box.remove(); resolve(); }, 380);
+    }
+    [y, n].forEach(function(b){
+      b.addEventListener("mouseenter", vanish);
+      b.addEventListener("mousedown", vanish);
+      b.addEventListener("touchstart", vanish);
+      b.addEventListener("click", vanish);
+    });
+    setTimeout(vanish, 4200);                 // 触れなくても数秒で消えて先へ
+  });
+}
+function askInput() {
+  return new Promise(function(resolve){
+    var inp = document.createElement("input"); inp.className = "field"; inp.type = "text";
+    inp.autocomplete = "off"; inp.spellcheck = false;
+    ui.appendChild(inp); inp.focus();
+    inp.addEventListener("keydown", function(e){
+      if (e.key === "Enter") {
+        var v = inp.value;
+        if (!v.trim()) return;                // 空欄では進めない
+        inp.remove(); resolve(v);
+      }
+    });
+  });
+}
+
+// ---- 入力内容の判定 ------------------------------------------------------
+var CHARS_JP = ["サンズ","パピルス","トリエル","アンダイン","アルフィー","メタトン","アズゴア","フリスク","キャラ"];
+var CHARS_EN = ["sans","papyrus","toriel","undyne","alphys","mettaton","asgore","frisk","chara"];
+var REFUSE   = ["いやだ","むり","おしえたくない","ことわる","いや","いやだね"];
+var BADWORDS = ["しね","ころす","ころせ","きもい","きしょ","ぶす","ぶさいく","ばか","あほ","かす",
+  "くず","うざい","だまれ","げす","ちんこ","まんこ","ちんちん","せっくす","えっち","えろ","ちくび",
+  "おっぱい","きんたま","ぺにす","ヴァギナ","fuck","shit","bitch","dick","sex","penis","pussy","boobs"];
+// 名前の表記ゆれ対策：NFKC正規化（半角カナ→全角・全角英数→半角）＋小文字化＋
+// 空白/中黒/ピリオド除去＋ひらがな→カタカナ。これで大小・半全・かなカナを吸収する。
+function normName(s){
+  var t = String(s);
+  if (t.normalize) t = t.normalize("NFKC");
+  t = t.toLowerCase().replace(/[\s\.・･]/g, "");
+  return t.replace(/[ぁ-ゖ]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) + 0x60); });
+}
+function inList(raw, list){
+  var t = normName(raw);
+  for (var i = 0; i < list.length; i++) if (t.indexOf(normName(list[i])) >= 0) return true;
+  return false;
+}
+function isGaster(raw){ return inList(raw, ["ガスター","gaster"]); }
+function isChar(raw){ return inList(raw, CHARS_JP.concat(CHARS_EN)); }
+var KRIS_N   = ["クリス","kris","chris"];                                  // ⑥
+var SUSIE_N  = ["スージィ","スージー","スーザン","susie","susan","suzie"];  // ⑦
+var FRIEND_N = ["ラルセイ","ノエル","バードリー","キャッティ","ジョッキントン",
+  "ralsei","noelle","noel","berdly","catti","jockington"];                  // ⑧
+var TOBY_N   = ["トビー","テミー","toby","temmie"];                         // ⑨（トビーフォックスも拾う）
+var TRICK = ["わしにしね","わたしにしね"];   // normNameでカナ/かな・半全の表記ゆれを吸収
+function isTrick(raw){ return inList(raw, TRICK); }
+function isRefuse(raw){ var t = raw.replace(/\s/g, ""); return REFUSE.indexOf(t) >= 0; }
+function hasProfanity(s){ var t = s.toLowerCase(); for (var i = 0; i < BADWORDS.length; i++) if (t.indexOf(BADWORDS[i]) >= 0) return true; return false; }
+function cp(s){ return Array.from(String(s)); }            // コードポイント配列（絵文字/結合対策）
+
+// 全角英数を半角化し，小文字化・空白除去（大文字小文字/半角全角の表記ゆれ対策）
+function normJ(s){
+  return String(s)
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); })
+    .toLowerCase().replace(/\s/g, "");
+}
+var UTDR   = ["undertale","deltarune","アンダーテール","デルタルーン","ｱﾝﾀﾞｰﾃｰﾙ","ﾃﾞﾙﾀﾙｰﾝ"];
+var MOTHER = ["mother","マザー","ﾏｻﾞｰ"];
+function isUTDR(raw){ var t = normJ(raw); for (var i = 0; i < UTDR.length; i++) if (t.indexOf(UTDR[i].toLowerCase()) >= 0) return true; return false; }
+function isMother(raw){ var t = normJ(raw); for (var i = 0; i < MOTHER.length; i++) if (t.indexOf(MOTHER[i].toLowerCase()) >= 0) return true; return false; }
+
+// ===========================================================================
+// 本編シナリオ
+// ===========================================================================
+async function story() {
+  await wait(2600);                          // パスワード後の“少しの間”
+  await say("…", 1500);
+  await say("……", 1500);
+  await say("とびらを　あけたのは　きみかな？", 1100);
+  await say("…", 1500);
+  await say("わたしは　ただの　おとこ。", 900);
+  await say("わたしは　わすれられた　もの。", 900);
+  await say("わたしは…　なんだったかな？", 1300);
+  await gap(1200);
+  await say("まあ　そんなさまつなことは　どうでもよいか。", 1000);
+  await say("ここには　だれも　いない。", 900);
+  await say("そうおもうかい？", 700);
+
+  // 選択1：正解=いいえ
+  if (await askYesNo()) { return failClose("＊ここにはなにもいなかった"); }
+  await say("それは　うれしい　かいとうだ…", 1100);
+  await say("わたしは　わたしを　よくわすれる　ものでね。", 1000);
+  await gap(1200);
+  await say("…", 1500);
+  await say("…", 1500);
+  await say("でも　なぜかキミとは　すでになんどか　であったような　きがする。", 1000);
+  await say("ふしぎな　バカげた　はなし　かもしれないけどね。", 1000);
+  await say("キミは　わたしの　はなしを　しんじてくれるかい？", 700);
+
+  // 選択2：正解=はい
+  if (!(await askYesNo())) {
+    await say("そうか…　それはざんねんだ。", 1100);
+    return failClose("もし　キミがわたしを　わすれなければ　またどこかで　あおう。");
+  }
+  await say("すばらしい…", 1200);
+  await gap(1000);
+
+  // 名前入力
+  await say("キミ…　だとすこし　そっけないか", 900);
+  await say("キミの　なまえを　おしえて　ほしい。", 900);
+  await say("…いや　ニックネームや　ハンドルネームで　かまわないよ。", 500);
+  var nameRaw = (await askInput()).trim();
+  if (isGaster(nameRaw)) {                    // ③
+    return glitchClose();
+  } else if (isChar(nameRaw)) {               // ②
+    await say("…いくら　わたしが　しょたいめん　だからといって", 800);
+    await say("たにんの　なまえを　おしえるのは　さすがに　ダメだとおもうぞ。", 1000);
+    await gap(900);
+    await say("わかった…　むりに　おしえなくて　いい。", 900);
+    NAME = "キミ";
+  } else if (isTrick(nameRaw)) {              // ⑤
+    await say("なるほど　わしにし…", 1300);
+    await gap(900);
+    await say("あぶない…　あやうく　ひっかかる　ところだった。", 900);
+    await say("そんな　こてんてきな　トリックには　かからないぞ。", 900);
+    NAME = "キミ";
+  } else if (isRefuse(nameRaw)) {             // ④
+    await say("…そうか", 1100);
+    await say("わかった…　むりに　おしえなくて　いい。", 900);
+    NAME = "キミ";
+  } else if (inList(nameRaw, KRIS_N)) {       // ⑥ たいせつな ゆうじんと同じ名前
+    await say("…", 1500);
+    await say("なるほど　きぐうな…", 1000);
+    await say("いや　なんでもない。", 900);
+    await say("わたしの　たいせつな　ゆうじんと　おなじなまえ　だったものでね。", 1000);
+    await say("よろしくたのむよ　クリスくん。", 1000);
+    NAME = "クリス";
+  } else if (inList(nameRaw, SUSIE_N)) {      // ⑦ くされえんの ゆうじんと似た名前
+    await say("…", 1500);
+    await say("なるほど　きぐうな…", 1000);
+    await say("いや　なんでもない。", 900);
+    await say("わたしと　くされえんの　ゆうじんと　にたなまえ　だったものでね。", 1000);
+    await say("わたしの　しりあいのなは　『スージー』という　なまえだが", 900);
+    await say("このなまえを　きくと　つい　はんのうしてしまってな。", 1000);
+    NAME = nameRaw + "くん";
+    await say("よろしくたのむよ　" + NAME + "。", 1000);
+  } else if (inList(nameRaw, FRIEND_N)) {     // ⑧ わすれてしまった ともだち
+    await say("…うむ", 1200);
+    await say("…", 1500);
+    await say("いや　どこかで　きいたような　ひびきなのだが", 900);
+    await say("おもいだすことが　できなくて　モヤモヤするものだ。", 1000);
+    await say("わすれてしまう　まえは　かけがえのない　ともだち　だったような", 900);
+    await say("そんな　きおくがあったの　だけどね…", 1300);
+    await say("…", 1500);
+    NAME = nameRaw + "くん";
+    await say("あらためて　よろしくたのむよ　" + NAME + "。", 1000);
+  } else if (inList(nameRaw, TOBY_N)) {       // ⑨ しろいいぬの乱入 → 強制終了
+    await say("なるほど　" + nameRaw + "　というのか。", 900);
+    await say("ありがとう　そして　よろしくたのむ。", 900);
+    await say("…", 1500);
+    await say("ん…？", 1400);
+    await gap(1000);
+    await say("な　なんだ　このしろいいぬ！？", 800);
+    await say("どこから　はいってきたのだ！", 1000);
+    await gap(900);
+    await say("コンソールのうえに　のるんじゃない！", 1100);
+    await gap(900);
+    await say("aornuaoo,ahijiuuuuuuuuu", 400);
+    glitchOnce();
+    await say("12kqozjjr2khfsoea5@", 900);
+    await gap(800);
+    await say("まて！　コーヒーが　きばんに！？", 500);
+    glitchOnce();
+    await say("auhfoewiohcoowiofjioawjsfpjewajfjpsjfpejfpjewajo", 300);
+    await say("kaunrnakai kafhan67208nsajfhiame aojfaiakimah", 400);
+    glitchOnce();
+    await gap(800);
+    await say("な　なにをする！", 800);
+    return failClose("くぁwせdrftgyふじこlp");
+  } else {                                    // ①
+    await say("なるほど　" + nameRaw + "　というのか。", 900);
+    await say("ありがとう　そして　よろしくたのむ。", 900);
+    NAME = nameRaw + "くん";
+    await say(NAME + "。", 1000);
+  }
+  await gap(1000);
+
+  // パズル好き？（偽の選択肢）
+  await say("では　もうすこしだけ　はなしを　させてほしい。", 800);
+  await say("<名前>は　パズルゲームはすきかな？", 400);
+  await fakeYesNo();
+  await say("…いや　むりじいを　するのは　よくないか。", 900);
+  await say("わたしが　すきなものを　きみが　すきである　かくしょうは　ないからね。", 1000);
+  await say("<名前>が　すきな　ゲームの　ジャンルを　おしえてほしい。", 500);
+
+  // ジャンル入力
+  var genre = (await askInput()).trim();
+  if (hasProfanity(genre)) {                  // ③
+    await say("<名前>は　どのゲームで　あそぶときも", 800);
+    await say("そういうことを　ためすのかい？", 900);
+    await say("<名前>の　こうきしんには　かんたんさせられる　ばかりだ。", 1100);
+  } else if (cp(genre).length >= 15) {        // ②
+    await say("…ん？　なんだって？", 800);
+    await say(cp(genre).slice(0, 6).join("") + "…　だったっけ？", 900);
+    await say("すまない　ながすぎて　わすれてしまったよ。", 900);
+    await say("だが　ねっしんに　きかせてくれて　ありがとう。", 1100);
+  } else {                                    // ①
+    await say("なるほど　" + genre + "　がすきなのか。", 900);
+    await say("…じつに　…じつに　きょうみぶかい。", 1300);
+  }
+  await gap(1000);
+
+  // おすすめ作品入力（新規）
+  await say("…", 1500);
+  await say("もしよければだが　そのジャンルの　なかで　とくにおもしろい", 800);
+  await say("さくひんが　あれば　おしえてほしい。", 900);
+  await say("…", 1500);
+  await say("もちろん　いやなら　こたえなくても　かまわない。", 500);
+  var work = (await askInput()).trim();
+  if (isUTDR(work)) {                         // ②
+    await say("はて？　きいたことがない　さくひんだ。", 1000);
+    await say("…", 1500);
+    await say("…なんで　そんなひょうじょうを　するのだ？", 900);
+    await say("まるで　わたしが　しらないふり　をきめこんでいる　ような", 900);
+    await say("ぎねんの　めせんを　かんじざるえない。", 1200);
+  } else if (isMother(work)) {                // ③
+    await say("これはきぐうだ！", 900);
+    await say("このさくひんは　すでに　あそんだことが　ある！！", 900);
+    await say("あそびすぎて　あそびすぎて　このさくひんの　すべてを　しりたくなった！！！", 1000);
+    await say("こどものころ　まどべで　くうそうに　ふけった　そのものがたりを", 800);
+    await say("あのせかいに　おとしこみたかった…！", 1300);
+    await gap(1200);
+    await say("…", 1500);
+    await say("いや　すまない　わたしも　このさくひんが　だいすきなもので", 900);
+    await say("つい　じょうぜつに　かたってしまったよ。", 1200);
+  } else if (isRefuse(work)) {                // ④
+    await say("<名前>は　じぶんのいけんを　はっきりいう。", 900);
+    await say("かんしんだ！", 900);
+    await say("しょうらいは　だいとうりょう　かもしれないな。", 1100);
+  } else {                                    // ①
+    await say("なるほど　" + work + "　という　さくひんが　あるのか。", 900);
+    await say("せっかく　<名前>に　おしえてもらった　さくひんだ", 800);
+    await say("わすれないように　て　にメモを　かいておくとしよう。", 900);
+    await say("なにぶん　ココでは　たいくつしのぎが　こいしくなる　ものでね。", 1200);
+  }
+  await gap(1000);
+
+  // おれい → ミニゲーム（新規。正解=はい／いいえでも進む）
+  await say("…", 1500);
+  await say("じつに　きょうみぶかい。", 900);
+  await say("いろいろ　<名前>には　おしえてもらった。", 900);
+  await say("せっかくだから　なにか　おれいが　したいのだが", 800);
+  await say("きょうみは　あるだろうか？", 600);
+  if (await askYesNo()) {
+    await say("そうこなくては。", 900);
+    await say("さっそく　このがめんを　みてほしい。", 900);
+    await wait(500);
+    await playMinigame();                     // 「もうお腹一杯」を選ぶまで（リトライ込み）
+    await gap(800);
+    await say("…", 1500);
+    await say("どうだろうか…？", 900);
+    await say("たのしんで　もらえたのなら　こうえいなことだが…", 1000);
+    await say("しょうじき　どうおもったかな？", 600);
+    if (await askChoice("最☆高", "駄作")) {
+      await say("…", 1500);
+      await say("わたしの　じょしゅたちは　みな", 800);
+      await say("きをつかって　くちをそろえて　『さいこう』と　ほめちぎって　きたものだが…", 1200);
+      await gap(900);
+      await say("<名前>は…　ほんとうに　しょうじきなところ　どうおもったかな？", 800);
+      await say("きたんのない　いけんを　きかせてほしい。", 600);
+      if (await askChoice("本当に楽しめた", "クソゲー")) {
+        await say("…", 1500);
+        await say("<名前>を　テストプレイヤーに　えらんで　ほんとうに　よかった。", 900);
+        await say("この　さくひんは　むねをはって　リリースできると　かくしんできた。", 1200);
+        await gap(900);
+        await say("ぜひ　テストプレイを　たくさんしてほしい。", 900);
+        await say("これから表示する　ウェブリンクは", 800);
+        await say("このゲームの　ベータテストに　アクセスできるものだ。", 900);
+        showBetaLink();                       // 直接アクセス用URL（合言葉つき）を提示
+        await wait(1600);
+        await say("わすれないように　かみに　かいたかい？", 600);
+        while (!(await askYesNo())) {         // いいえ の間はループして待つ
+          await say("きみは　とてもしょうじきもの　なおようだ。", 900);
+          await say("おわるまで　まっているから　きにせずに　メモを　とってくれ。", 1200);
+          await gap(1200);
+          await say("わすれないように　かみに　かいたかい？", 600);
+        }
+        hideBetaLink();                       // メモを取り終えたらリンクを引っ込める
+        await say("ああ　きみのきづずかいは　すばらしい", 900);
+        await say("こんごも　よしなに　たのませてもらうよ。", 1200);
+      } else {                                // クソゲー
+        await say("…", 1500);
+        await say("まあ　やはり　そうか…", 1100);
+        await honestReaction();
+      }
+    } else {                                  // 駄作
+      await honestReaction();
+    }
+  } else {
+    await say("まあ　それは　しかたがないことだ。", 900);
+    await say("もしも　つぎが　あれば　そのときは　ひろうしたい　ものだ。", 1100);
+  }
+  await gap(1000);
+
+  // 追憶
+  await say("…", 1500);
+  await say("いろいろ　はなしを　していたら", 800);
+  await say("おかげで　わたしも　すこしだけ　かこを　おもいだしてきた　かもしれない。", 1200);
+  await gap(1000);
+  await say("<名前>とは", 600);
+  await say("いっしょに　ボイスチャットで　4人プレイのゲームで　あそんだ。", 900);
+  await say("ゲームがかきょうのとき　よく　エグゼがクラッシュして　たいへんだった。", 900);
+  await say("ソラライドでは　DDDだいおうと　ハイドラで　ぶいぶい　いわせたもんだ。", 900);
+  await say("よくいっしょに　そざいを　あつめるぼうけんも　したものだ。", 900);
+  await say("…", 1500);
+  await say("あのときは　かってに　はなを　しゅうかくして　すまなかった…", 1200);
+  await say("…", 1500);
+  await gap(800);
+  await say("<名前>は　わたしがかってに　はなを　とってしまったことを　ね　にもっているかい？", 700);
+
+  // 選択3：正解=いいえ
+  if (await askYesNo()) {
+    await say("…つぎからは　きをつけるよ。", 900);
+    return failClose("『つぎ』が　あればの　はなしだけどね…");
+  }
+  await say("<名前>の　かんだいなこころに　かんしゃする。", 1200);
+  await gap(1000);
+
+  // 終盤：中央下に「男」が浮かび上がる（文字より下のレイヤー）
+  man.classList.add("show");
+  await wait(600);
+  await say("…", 1500);
+  await say("じつに…　じつに…　ゆういぎな　じかんだ。", 900);
+  await say("こんなに　たのしいと　かんじたのは　いついらいだろうか？", 1200);
+  await gap(1000);
+  await say("きのう？", 800);
+  await say("いや　1つき？", 800);
+  await say("それとも11ねん？", 1300);
+  await gap(1000);
+  await say("<名前>は　わたしを　わすれ", 800);
+  await say("わたしも　わたしを　わすれるかもしれない。", 900);
+  await say("それでも　わたしは", 800);
+  await say("<名前>と　すごした　おもいでは　わすれはしない。", 900);
+  await say("ほんとうに　ほんとうに　ありがとう。", 1400);
+
+  // 白くなりかけて戻る
+  await whiteFadePartial();
+
+  await say("…ん？", 1200);
+  await say("ここにきたのは　だれかが　たすけを　もとめていたから　だって？", 1000);
+  await say("パスワードも　たすけを　もとめる　メッセージに　かいてあった？", 1200);
+  await gap(1000);
+  await say("…", 1500);
+  await say("なるほどこまった。", 900);
+  await say("ここには　わたしと　わたしと　<名前>　そして　わたししかいない。", 1000);
+  await say("このこを　のぞいてはね。", 1200);
+  await gap(1000);
+
+  // egg.png を渡す
+  downloadEgg();
+  await say("タマゴなら　なにかしっている　かもしれない。", 900);
+  await say("わたしとの　このかいわも", 700);
+  await say("たすけを　もとめるこえの　しょうたいも…", 1300);
+  await gap(1000);
+  await say("てきとうに　おいておくと　なくしてしまうかもしれない。", 900);
+  await say("だから　かならず　わかりやすい　ディレクトリに　おいておくように。", 1000);
+  await say("タマゴは　はじることなどない。", 1300);
+  await gap(1000);
+  await say("さあ　もう　ゆきなさい。", 900);
+  await say("かおをあらって　ふくをきて！", 900);
+  await say("そして　つぎがあれば", 800);
+  await say("もしわたしが　このかいわすら　わすれてしまったとしても…", 1100);
+  await say("よろしくたのむ。", 1300);
+  await say("…", 1500);
+  await say("EOF", 1800);
+
+  // 白へフェードアウト → 閉じる
+  await whiteOutClose();
+}
+
+function downloadEgg() {
+  var a = document.createElement("a");
+  a.href = "resource/egg.png"; a.download = "egg.png";
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+// 「駄作」「クソゲー」で共通する，いちばんの助手を思い出すくだり
+async function honestReaction() {
+  await say("しょうじきな　いけんを　きかせてくれて　ありがとう。", 900);
+  await say("きみの　その　はっきりと　ものをいうすがた…", 900);
+  await say("かおに　はりついた　えがお…", 1000);
+  await say("わたしの　いちばんの　じょしゅのことを　おもいだしたよ。", 900);
+  await say("かれと　おとうとは　いまも　げんきだろうか…", 1400);
+}
+
+// ベータテスト用の直接アクセスURL（合言葉つき）をログの下に表示する。
+// 書き留めてもらう前提なのでフルURLをそのまま見せる。GONER1997 はビルド時に置換。
+// 「かみに かいたかい？」で はい と答えたら hideBetaLink() でフェードアウトさせる。
+var betaBox = null;
+function showBetaLink() {
+  var url = location.href.replace(/[^\/]*$/, "") + "game.html?key=GONER1997";
+  betaBox = document.createElement("div"); betaBox.className = "beta-link";
+  var a = document.createElement("a");
+  a.href = "game.html?key=GONER1997"; a.target = "_blank"; a.rel = "noopener";
+  a.textContent = url;
+  betaBox.appendChild(a); ui.appendChild(betaBox);
+}
+function hideBetaLink() {
+  if (!betaBox) return;
+  var el = betaBox; betaBox = null;
+  el.style.animation = "none"; el.style.opacity = "1";     // uiInアニメの固定値を外す
+  requestAnimationFrame(function(){
+    el.style.transition = "opacity .8s ease"; el.style.opacity = "0";
+    setTimeout(function(){ el.remove(); }, 900);
+  });
+}
+
+// ミニゲーム（ゼルダ風・minigame.js）。クリア/ドロップのどちらでも解決して本編へ戻る。
+// 何らかの理由で読み込めない場合はプレースホルダで先へ進めるようにしておく。
+function playMinigame() {
+  if (window.NobodyGame && typeof window.NobodyGame.start === "function") {
+    return window.NobodyGame.start();
+  }
+  return new Promise(function(resolve){
+    var box = document.createElement("div"); box.className = "minigame-stub";
+    box.innerHTML =
+      "<div class='mg-note'>［ ミニゲーム（じゅんびちゅう） ］</div>" +
+      "<button class='choice mg-btn'>クリックで つづける</button>";
+    ui.appendChild(box);
+    box.querySelector(".mg-btn").addEventListener("click", function(){
+      box.remove(); resolve();
+    });
+  });
+}
+
+//-----------------------------------------------------------------------------
+// パスワードゲート。正解を入力するまでは真っ暗のまま先へ進めない。
+// （静的サイトなので合言葉はソースから読めてしまう。あくまで隠し要素向け。）
+//-----------------------------------------------------------------------------
+var PASSWORD = "FJFIrejirioEUEUROEI4378789";
+var opened = false;
+
+function startMonologue() {
+  if (opened) return;
+  opened = true;
+  gate.classList.add("open");                          // ゲートを暗転させて消す
+  setTimeout(function(){ gate.style.display = "none"; }, 1200);
+  scene.classList.add("on");                           // 対話画面を表示
+  setTimeout(function(){ door.classList.add("awake"); }, 800);
+  story();
+}
+function checkPassword() {
+  if (pw.value.trim() === PASSWORD) startMonologue();
+}
+pw.addEventListener("input", checkPassword);
+pw.addEventListener("keydown", function(e){ if (e.key === "Enter") checkPassword(); });
+</script>
+</body></html>

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>作成ルール - バーナム効果のるつぼ1997</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="article-page">
+<header class="site-header">
+  <div class="header-logo">バーナム効果のるつぼ1997<span class="dotcom">.com</span></div>
+  <nav class="header-nav"><a class="navtab" href="index.html">目次</a><a class="navtab" href="backnumber.html">バックナンバー</a><a class="navtab" href="official.html">公式情報</a></nav>
+</header>
+<main class="board">
+  <h1 class="board-title">作成ルール</h1>
+  <div class="thread">
+<div class="post op"><div class="post-body"><p class="post-text">■作成時のルールについて</p>
+<p class="post-text">・関数の作成時には関数の上に何をしているものかの注釈を記載してください。</p>
+<p class="post-text">例）<br>//-------------------------------------------------------------------------------<br>// 四則演算をする処理<br>//-------------------------------------------------------------------------------<br>static int Arithmetic_operations (int target1, int terget2)<br>(以下、処理)</p>
+<p class="post-text">・アプリ作成時は作成者をC2H4とし、会社名は未記載にするように変更してください。</p>
+<p class="post-text">・処理内でのコメントなどで句読点を使用する際は『、』の代わりに『，』、『。』の代わりに『．』を使用してください</p>
+<p class="post-text">・処理内で複雑そうなものがある場合は右側にコメントアウトで何の処理かを記載してください</p>
+<p class="post-text">■よく使う汎用処理<br>下記の関数はC#でよく使用する関数です。</p>
+<p class="post-text">・FindFirstFile関数<br>指定した引数のファイルまたはフォルダを見つかるまで探してパスを返す関数</p>
+<p class="post-text">        //-------------------------------------------------------------------------------<br>        //対象のパスからfileNameを見つけるまで探す処理<br>        //-------------------------------------------------------------------------------<br>        static string FindFirstFile(string directory, string targetName)<br>        {<br>            try<br>            {<br>                // フォルダ内のファイルを探索<br>                foreach (var file in Directory.GetFiles(directory))<br>                {<br>                    if (Path.GetFileName(file).Equals(targetName, StringComparison.OrdinalIgnoreCase))<br>                    {<br>                        return file; // 最初に見つかったファイルのフルパスを返す<br>                    }<br>                }</p>
+<p class="post-text">                // フォルダ内のフォルダを探索（フォルダ名と一致するか確認）<br>                foreach (var subDirectory in Directory.GetDirectories(directory))<br>                {<br>                    if (Path.GetFileName(subDirectory).Equals(targetName, StringComparison.OrdinalIgnoreCase))<br>                    {<br>                        return subDirectory; // フォルダ名が一致した場合、そのパスを返す<br>                    }</p>
+<p class="post-text">                    // 再帰的に探索<br>                    var result = FindFirstFile(subDirectory, targetName);<br>                    if (!string.IsNullOrEmpty(result))<br>                    {<br>                        return result; // 見つかった場合はそのフルパスを返す<br>                    }<br>                }<br>            }<br>            catch (UnauthorizedAccessException)<br>            {<br>                //string Exception = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, targetName);<br>                //return Exception;<br>            }<br>            catch (Exception ex)<br>            {<br>                // 対象が見つからない場合はResourceフォルダ内に作成<br>                //string Exception = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, targetName);<br>                //return Exception;<br>            }</p>
+<p class="post-text">            return null;<br>        }</p>
+<p class="post-text">・</p></div></div>
+</div>
+</main>
+<footer class="site-footer">
+  <a href="index.html">&laquo; 目次にもどる</a>
+</footer>
+
+</body></html>

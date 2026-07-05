@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>これでもくらえ</title>
+<style>
+  html, body { margin:0; height:100%; background:#000; overflow:hidden; }
+  #vid { position:fixed; inset:0; width:100%; height:100%; object-fit:contain; background:#000; }
+  #cover { position:fixed; inset:0; z-index:10; display:none;
+    align-items:center; justify-content:center; flex-direction:column;
+    background:rgba(0,0,0,.6); color:#fff; cursor:pointer; user-select:none;
+    font-family:"MS PGothic",Osaka,sans-serif; }
+  #cover .big { font-size:72px; line-height:1; }
+  #cover .txt { margin-top:18px; font-size:18px; letter-spacing:2px; }
+</style>
+</head>
+<body>
+<video id="vid" src="resource/Sans_Dance!.mp4" autoplay loop playsinline></video>
+<div id="cover"><div class="big">&#128266;</div><div class="txt">クリックで音を出す</div></div>
+<script>
+//-------------------------------------------------------------------------------
+// ローカル動画を音あり優先で再生し，ブロックされたらミュート再生＋クリック保険を出す処理
+//-------------------------------------------------------------------------------
+var vid = document.getElementById("vid");
+var cover = document.getElementById("cover");
+
+vid.play().catch(function(){                 // 音あり自動再生がブロックされた場合
+  vid.muted = true;                          // いったんミュートで再生を続行し
+  vid.play().catch(function(){});
+  cover.style.display = "flex";              // クリックで音を出せるようにする
+});
+
+cover.addEventListener("click", function(){
+  vid.muted = false; vid.play();             // クリックで音ありフル再生
+  cover.style.display = "none";
+});
+
+//-------------------------------------------------------------------------------
+// 戻るボタンの無効化（連打されても他ページへ抜けられないようにする処理）
+// 履歴を厚めに積んで連打のバーストを吸収し，戻られるたびに1個積み直して深さを一定に保つ
+//-------------------------------------------------------------------------------
+(function(){
+  function plug(){ history.pushState(null, "", location.href); }
+  for (var i = 0; i < 20; i++) plug();                      // バースト対策に履歴を多めに積む
+  window.addEventListener("popstate", function(){ plug(); });  // 戻られた分を都度積み直す
+})();
+</script>
+</body></html>

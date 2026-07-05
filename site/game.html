@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>&#12288;</title>
+<style>
+  @font-face { font-family:"DeterminationJP";
+    src:url("fonts/DeterminationJP.ttf") format("truetype"); font-display:swap; }
+  html,body { margin:0; height:100%; background:#000; overflow:hidden;
+    font-family:"DeterminationJP","MS PGothic",Osaka,sans-serif; color:#c9c9c9; }
+  #panel { position:fixed; inset:0; display:none; flex-direction:column;
+    align-items:center; justify-content:center; gap:20px; text-align:center; }
+  #panel.on { display:flex; }
+  h1 { color:#e6e6e6; font-size:22px; letter-spacing:3px; margin:0; }
+  .sub { color:#33ff66; font-size:12px; letter-spacing:3px; }
+  p { color:#8a8a8a; font-size:13px; line-height:1.9; margin:0; }
+  button { font-family:inherit; font-size:18px; letter-spacing:2px; color:#e6e6e6;
+    background:transparent; border:2px solid #666; padding:10px 34px; cursor:pointer; }
+  button:hover { background:#111; border-color:#ccc; }
+  #result { color:#e6e6e6; font-size:15px; min-height:1.4em; }
+</style>
+</head>
+<body>
+<div id="panel">
+  <h1>ベータテスト</h1>
+  <div class="sub">TEST PLAYER ONLY</div>
+  <p>そうさ： 移動＝←↑↓→ / WASD　　剣＝Z（Space・J）　　杖＝X<br>
+     レベルアップ・かいもの＝↑↓でえらび Enter/Z　　やめる＝Esc / Q<br>
+     ぜんぶの敵をたおすと扉があき，画面のはしから つぎのスクリーンへ</p>
+  <button id="startBtn">▶ テストをはじめる</button>
+  <div id="result"></div>
+</div>
+<script src="minigame.js"></script>
+<script>
+// 合言葉（?key=）が一致したときだけパネルを出す。不一致なら真っ黒のまま。
+var KEY = "GONER1997";
+var panel = document.getElementById("panel");
+var btn = document.getElementById("startBtn");
+var res = document.getElementById("result");
+if (new URLSearchParams(location.search).get("key") === KEY) {
+  panel.classList.add("on");
+  btn.addEventListener("click", function(){
+    panel.classList.remove("on");
+    res.textContent = "";
+    window.NobodyGame.start().then(function(score){
+      panel.classList.add("on");
+      res.textContent = "スコア: " + score + "　テストプレイに かんしゃする。";
+    });
+  });
+}
+</script>
+</body></html>
